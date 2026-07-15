@@ -25,6 +25,12 @@ export default async function HomePage() {
           <Link href="/sign-up">
             <Button className="bg-primary hover:bg-primary/90">Get Started</Button>
           </Link>
+          <Link href="/admin-login">
+            <Button variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/60 gap-1.5">
+              <Shield className="h-4 w-4" />
+              Admin
+            </Button>
+          </Link>
         </div>
       </nav>
 

@@ -16,3 +16,4 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(errResp, { status: (err as { statusCode?: number }).statusCode ?? 500 });
   }
 }
+

@@ -242,21 +242,32 @@ export async function getDashboardStats(userId: string) {
       take: 10,
       select: { clickedAt: true, country: true, browser: true, linkId: true },
     }),
-    prisma.$queryRaw<{ date: string; clicks: number }[]>`
-      SELECT DATE(clicked_at) as date, COUNT(*)::int as clicks
-      FROM analytics
-      WHERE link_id = ANY(${linkIds}::text[])
-        AND is_bot = false
-        AND clicked_at >= ${last30Days}
-      GROUP BY DATE(clicked_at)
-      ORDER BY date ASC
-    `,
+    // clicks grouped by day for the last 30 days
+    prisma.analytics.findMany({
+      where: {
+        linkId: { in: linkIds },
+        isBot: false,
+        clickedAt: { gte: last30Days },
+      },
+      select: { clickedAt: true },
+      orderBy: { clickedAt: "asc" },
+    }),
   ]);
 
   const clickGrowth =
     prevMonthClicks === 0
       ? 100
       : Math.round(((monthClicks - prevMonthClicks) / prevMonthClicks) * 100);
+
+  // Group clicks by day in JS (avoids raw SQL)
+  const clicksByDay = new Map<string, number>();
+  for (const row of clicksOverTime) {
+    const date = row.clickedAt.toISOString().split("T")[0];
+    clicksByDay.set(date, (clicksByDay.get(date) ?? 0) + 1);
+  }
+  const clicksOverTimeGrouped = Array.from(clicksByDay.entries())
+    .map(([date, clicks]) => ({ date, clicks }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   return {
     totalLinks,
@@ -267,6 +278,6 @@ export async function getDashboardStats(userId: string) {
     clickGrowth,
     topLinks,
     recentActivity,
-    clicksOverTime,
+    clicksOverTime: clicksOverTimeGrouped,
   };
 }

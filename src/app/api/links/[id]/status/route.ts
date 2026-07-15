@@ -6,35 +6,22 @@ import { successResponse, handleApiError, NotFoundError, ForbiddenError } from "
 import { createAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 
-const statusSchema = z.object({
-  status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]),
-});
+const statusSchema = z.object({ status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]) });
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const user = await requireAuth();
     const ip = getClientIp(request);
-    const link = await linkRepository.findById(params.id);
+    const link = await linkRepository.findById(id);
     if (!link) throw new NotFoundError("Link");
     if (!canManageLink(user, link.userId)) throw new ForbiddenError();
-
     const body = await request.json();
     const { status } = statusSchema.parse(body);
-    const updated = await linkRepository.updateStatus(params.id, status);
-
-    await createAuditLog({
-      userId: user.id,
-      action: "UPDATE",
-      resource: "DynamicLink",
-      resourceId: params.id,
-      metadata: { status },
-      ipAddress: ip,
-    });
-
+    const updated = await linkRepository.updateStatus(id, status);
+    await createAuditLog({ userId: user.id, action: "UPDATE", resource: "DynamicLink", resourceId: id, metadata: { status }, ipAddress: ip });
     return NextResponse.json(successResponse(updated));
   } catch (err) {
-    return NextResponse.json(handleApiError(err), {
-      status: (err as { statusCode?: number }).statusCode ?? 500,
-    });
+    return NextResponse.json(handleApiError(err), { status: (err as any).statusCode ?? 500 });
   }
 }

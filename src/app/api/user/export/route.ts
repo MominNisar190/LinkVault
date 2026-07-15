@@ -47,3 +47,4 @@ export async function GET() {
     return NextResponse.json(handleApiError(err), { status: 500 });
   }
 }
+

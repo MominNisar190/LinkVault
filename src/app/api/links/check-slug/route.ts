@@ -14,3 +14,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(handleApiError(err), { status: 500 });
   }
 }
+

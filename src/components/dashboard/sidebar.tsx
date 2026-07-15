@@ -28,9 +28,12 @@ const navItems = [
   { href: "/admin", icon: Shield, label: "Admin", adminOnly: true },
 ];
 
-export function Sidebar() {
+export function Sidebar({ role }: { role?: string }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+
+  const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -60,7 +63,7 @@ export function Sidebar() {
         {/* Nav */}
         <ScrollArea className="flex-1 py-4">
           <nav className="px-2 space-y-1">
-            {navItems.map((item) => {
+            {visibleItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const content = (
                 <Link

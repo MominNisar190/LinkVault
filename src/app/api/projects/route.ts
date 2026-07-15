@@ -27,3 +27,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(errResp, { status: (err as { statusCode?: number }).statusCode ?? 500 });
   }
 }
+

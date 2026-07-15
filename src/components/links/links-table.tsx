@@ -54,7 +54,7 @@ export function LinksTable() {
   const bulkMutation     = useBulkAction();
   const updateMutation   = useUpdateLink();
 
-  const links      = data?.data?.links ?? [];
+  const links      = data?.data ?? [];
   const meta       = data?.meta ?? {};
   const totalPages = meta.totalPages ?? 1;
 

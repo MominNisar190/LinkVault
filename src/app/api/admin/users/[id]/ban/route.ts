@@ -8,24 +8,25 @@ import { getClientIp } from "@/lib/rate-limit";
 
 const banSchema = z.object({ reason: z.string().min(1).max(500) });
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const admin = await requireAdmin();
     const ip    = getClientIp(request);
+    const { id } = await params;
     const body  = await request.json();
     const { reason } = banSchema.parse(body);
 
-    const user = await prisma.user.findUnique({ where: { id: params.id } });
+    const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundError("User");
 
     const updated = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data:  { isBanned: true, banReason: reason, status: "SUSPENDED" },
     });
 
     await createAuditLog({
       userId: admin.id, action: "UPDATE", resource: "User",
-      resourceId: params.id,
+      resourceId: id,
       metadata: { action: "ban", reason, targetEmail: user.email },
       ipAddress: ip,
     });
@@ -38,22 +39,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const admin = await requireAdmin();
     const ip    = getClientIp(request);
+    const { id } = await params;
 
-    const user = await prisma.user.findUnique({ where: { id: params.id } });
+    const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundError("User");
 
     const updated = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data:  { isBanned: false, banReason: null, status: "ACTIVE" },
     });
 
     await createAuditLog({
       userId: admin.id, action: "UPDATE", resource: "User",
-      resourceId: params.id,
+      resourceId: id,
       metadata: { action: "unban", targetEmail: user.email },
       ipAddress: ip,
     });

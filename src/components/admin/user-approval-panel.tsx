@@ -27,15 +27,17 @@ export function UserApprovalPanel() {
   const approveMutation = useMutation({
     mutationFn: async (userId: string) => {
       const res = await fetch(`/api/admin/users/${userId}/approve`, { method: "POST" });
-      return res.json();
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Approve failed");
+      return json;
     },
-    onSuccess: (_, userId) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-pending-users"] });
       qc.invalidateQueries({ queryKey: ["admin-users"] });
       qc.invalidateQueries({ queryKey: ["admin-stats"] });
-      toast({ title: "User approved successfully" });
+      toast({ title: "User approved — they can now sign in" });
     },
-    onError: () => toast({ title: "Failed to approve user", variant: "destructive" }),
+    onError: (err: any) => toast({ title: `Failed to approve: ${err.message}`, variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
@@ -45,12 +47,16 @@ export function UserApprovalPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: "Registration rejected by admin" }),
       });
-      return res.json();
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Reject failed");
+      return json;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-pending-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
       toast({ title: "User rejected" });
     },
+    onError: (err: any) => toast({ title: `Failed to reject: ${err.message}`, variant: "destructive" }),
   });
 
   return (

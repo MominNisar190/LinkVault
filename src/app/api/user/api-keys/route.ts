@@ -66,3 +66,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(handleApiError(err), { status: 500 });
   }
 }
+
