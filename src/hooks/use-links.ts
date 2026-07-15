@@ -28,7 +28,13 @@ export function useLinks(params?: Partial<SearchInput>) {
 
   return useQuery({
     queryKey: ["links", params],
-    queryFn: () => fetch(`${API}?${query}`).then((r) => r.json()).then((d) => d),
+    queryFn: async () => {
+      const res = await fetch(`${API}?${query}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Request failed");
+      // Return both data and meta so consumers can access pagination
+      return { data: json.data, meta: json.meta };
+    },
   });
 }
 
@@ -122,6 +128,22 @@ export function useBulkAction() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["links"] });
       toast({ title: `Bulk ${vars.action} completed` });
+    },
+  });
+}
+
+export function useToggleLinkStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "ACTIVE" | "INACTIVE" | "ARCHIVED" }) =>
+      fetcher(`${API}/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["links"] });
+      qc.invalidateQueries({ queryKey: ["link", vars.id] });
+      toast({ title: "Status updated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
     },
   });
 }

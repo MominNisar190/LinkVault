@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/errors";
+import { handleApiError, ForbiddenError, errorResponse } from "@/lib/errors";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +16,11 @@ export async function GET(request: NextRequest) {
       select: { id: true },
     });
     const allowedIds = userLinks.map((l) => l.id);
+
+    // Verify the requested linkId belongs to the user
+    if (linkId && !allowedIds.includes(linkId)) {
+      throw new ForbiddenError("You do not have access to this link's analytics");
+    }
 
     const where = {
       linkId: linkId ? linkId : { in: allowedIds },
@@ -84,7 +89,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err) {
-    return NextResponse.json(handleApiError(err), { status: 500 });
+    return NextResponse.json(handleApiError(err), {
+      status: (err as { statusCode?: number }).statusCode ?? 500,
+    });
   }
 }
 

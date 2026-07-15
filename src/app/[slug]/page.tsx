@@ -87,8 +87,8 @@ export default async function SlugPage({ params, searchParams }: Props) {
     }
   }
 
-  // Record visit asynchronously — non-blocking
-  recordVisit({
+  // Record visit — await so it completes before redirect throws
+  await recordVisit({
     linkId: link.id,
     ip, userAgent, referrer, country, region, city, language, timezone,
     utmSource:   sp.utm_source   ?? link.utmSource   ?? undefined,

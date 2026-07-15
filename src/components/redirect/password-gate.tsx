@@ -21,8 +21,13 @@ export function PasswordGate({ slug, error, ogTitle }: PasswordGateProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!password.trim()) return;
+
+    // Sanitize slug: only allow URL-safe characters to prevent path traversal
+    const safeSlug = slug.replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!safeSlug) return;
+
     setLoading(true);
-    router.push(`/${slug}?p=${encodeURIComponent(password)}`);
+    router.push(`/${safeSlug}?p=${encodeURIComponent(password)}`);
   }
 
   return (

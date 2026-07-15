@@ -7,7 +7,7 @@ import {
   ExternalLink, CheckCircle2, XCircle, Clock, Eye, BarChart3,
   RefreshCw, ChevronLeft, ChevronRight, SlidersHorizontal,
 } from "lucide-react";
-import { useLinks, useDeleteLink, useDuplicateLink, useBulkAction, useUpdateLink } from "@/hooks/use-links";
+import { useLinks, useDeleteLink, useDuplicateLink, useBulkAction, useToggleLinkStatus } from "@/hooks/use-links";
 import { buildShortUrl, copyToClipboard, formatNumber, timeAgo, getDomain, truncate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ export function LinksTable() {
   const deleteMutation   = useDeleteLink();
   const duplicateMutation = useDuplicateLink();
   const bulkMutation     = useBulkAction();
-  const updateMutation   = useUpdateLink();
+  const toggleStatusMutation = useToggleLinkStatus();
 
   const links      = data?.data ?? [];
   const meta       = data?.meta ?? {};
@@ -85,10 +85,10 @@ export function LinksTable() {
   }
 
   async function handleToggleStatus(link: any) {
-    await updateMutation.mutateAsync({
+    await toggleStatusMutation.mutateAsync({
       id: link.id,
       status: link.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-    } as any);
+    });
   }
 
   return (

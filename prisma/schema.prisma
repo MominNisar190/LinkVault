@@ -76,6 +76,7 @@ model User {
   // Relations
   projects       Project[]
   links          DynamicLink[]
+  linkHistory    LinkHistory[]
   apiKeys        ApiKey[]
   auditLogs      AuditLog[]
   sessions       UserSession[]
@@ -199,6 +200,7 @@ model LinkHistory {
   createdAt      DateTime @default(now())
 
   link DynamicLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([linkId])
   @@index([userId])

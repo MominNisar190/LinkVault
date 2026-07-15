@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Users, Link2, MousePointerClick, ShieldAlert, Search,
   Ban, CheckCircle2, RefreshCw, ChevronLeft, ChevronRight,
-  FileText, TrendingUp, UserCheck,
+  FileText, TrendingUp, UserCheck, Eye,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,8 @@ import { toast } from "@/hooks/use-toast";
 import { getInitials, formatNumber, timeAgo, formatDate } from "@/lib/utils";
 
 export function AdminDashboard() {
-  const qc = useQueryClient();
+  const qc     = useQueryClient();
+  const router = useRouter();
   const [userSearch, setUserSearch] = useState("");
   const [userPage,   setUserPage]   = useState(1);
   const [banTarget,  setBanTarget]  = useState<{ id: string; name: string } | null>(null);
@@ -197,7 +199,11 @@ export function AdminDashboard() {
                 </thead>
                 <tbody>
                   {users.map((user: any) => (
-                    <tr key={user.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                    <tr
+                      key={user.id}
+                      className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer group"
+                      onClick={() => router.push(`/admin/users/${user.id}`)}
+                    >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
@@ -205,7 +211,9 @@ export function AdminDashboard() {
                             <AvatarFallback className="text-xs">{getInitials(user.name ?? user.email)}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium text-sm">{user.name ?? "—"}</p>
+                            <p className="font-medium text-sm group-hover:text-primary transition-colors">
+                              {user.name ?? "—"}
+                            </p>
                             <p className="text-xs text-muted-foreground">{user.email}</p>
                           </div>
                         </div>
@@ -227,7 +235,18 @@ export function AdminDashboard() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1.5 justify-end">
+                        <div
+                          className="flex gap-1.5 justify-end"
+                          onClick={(e) => e.stopPropagation()} // prevent row click when using action buttons
+                        >
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7 gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                          >
+                            <Eye className="h-3 w-3" /> View
+                          </Button>
                           {user.status === "PENDING" && (
                             <Button
                               size="sm"

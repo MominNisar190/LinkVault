@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -57,7 +57,7 @@ export default function AdminLoginPage() {
 
       if (!json.isAdmin) {
         // Sign them out immediately — not an admin
-        await fetch("/api/auth/signout", { method: "POST" });
+        await signOut({ redirect: false });
         setError(ERROR_MESSAGES.NOT_ADMIN);
         return;
       }
