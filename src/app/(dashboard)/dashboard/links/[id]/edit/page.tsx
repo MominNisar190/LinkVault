@@ -5,11 +5,12 @@ import { EditLinkForm } from "@/components/links/edit-link-form";
 
 export const metadata = { title: "Edit Link" };
 
-export default async function EditLinkPage({ params }: { params: { id: string } }) {
+export default async function EditLinkPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
 
-  const link = await linkRepository.findById(params.id);
+  const link = await linkRepository.findById(id);
   if (!link || link.userId !== session.user.id) notFound();
 
   return (

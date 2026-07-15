@@ -5,11 +5,12 @@ import { LinkDetail } from "@/components/links/link-detail";
 
 export const metadata = { title: "Link Details" };
 
-export default async function LinkDetailPage({ params }: { params: { id: string } }) {
+export default async function LinkDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
 
-  const link = await linkRepository.findByIdWithRelations(params.id);
+  const link = await linkRepository.findByIdWithRelations(id);
   if (!link || link.userId !== session.user.id) notFound();
 
   return (

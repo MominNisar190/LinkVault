@@ -7,16 +7,17 @@ import Link from "next/link";
 
 export const metadata = { title: "Link Analytics" };
 
-export default async function LinkAnalyticsPage({ params }: { params: { id: string } }) {
+export default async function LinkAnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
 
-  const link = await linkRepository.findById(params.id);
+  const link = await linkRepository.findById(id);
   if (!link || link.userId !== session.user.id) notFound();
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <Link href={`/dashboard/links/${params.id}`}
+      <Link href={`/dashboard/links/${id}`}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft className="h-4 w-4" /> Back to Link
       </Link>
@@ -26,7 +27,7 @@ export default async function LinkAnalyticsPage({ params }: { params: { id: stri
           Detailed stats for <code className="font-mono text-primary">/{link.slug}</code>
         </p>
       </div>
-      <LinkAnalytics linkId={params.id} />
+      <LinkAnalytics linkId={id} />
     </div>
   );
 }
