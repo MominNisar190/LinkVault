@@ -106,7 +106,7 @@ export function copyToClipboard(text: string): Promise<void> {
 }
 
 export function buildShortUrl(slug: string, baseUrl?: string): string {
-  const base = baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const base = baseUrl ?? process.env.NEXT_PUBLIC_SHORT_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return `${base}/${slug}`;
 }
 
