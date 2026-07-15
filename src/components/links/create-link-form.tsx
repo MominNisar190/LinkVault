@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shuffle, Eye, EyeOff, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Shuffle, Eye, EyeOff, ChevronDown, ChevronUp, Loader2, Link2 } from "lucide-react";
 import { createLinkSchema, type CreateLinkInput } from "@/lib/validations";
 import { useCreateLink } from "@/hooks/use-links";
-import { generateSlug } from "@/lib/utils";
+import { buildShortUrl, generateSlug } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +33,7 @@ export function CreateLinkForm() {
     formState: { errors },
   } = useForm<CreateLinkInput>({
     resolver: zodResolver(createLinkSchema),
-    defaultValues: { tags: [], redirectDelay: 0 },
+    defaultValues: { tags: [], redirectDelay: 0, slug: generateSlug(6) },
   });
 
   const tags = watch("tags") ?? [];
@@ -109,6 +109,20 @@ export function CreateLinkForm() {
                 <Shuffle className="h-4 w-4" />
               </Button>
             </div>
+            {/* Live URL preview */}
+            {watch("slug") && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
+                <Link2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <a
+                  href={buildShortUrl(watch("slug")!)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-mono text-primary hover:underline break-all"
+                >
+                  {buildShortUrl(watch("slug")!)}
+                </a>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

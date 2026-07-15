@@ -213,12 +213,17 @@ export function LinksTable() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-primary font-medium">
-                              /{link.slug}
-                            </span>
+                            <a
+                              href={buildShortUrl(link.slug)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-primary font-medium hover:underline text-sm"
+                            >
+                              {buildShortUrl(link.slug)}
+                            </a>
                             <button
                               onClick={() => handleCopy(link.slug)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
+                              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </button>
