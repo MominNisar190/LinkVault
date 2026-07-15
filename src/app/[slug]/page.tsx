@@ -9,13 +9,14 @@ import { LinkExpired } from "@/components/redirect/link-expired";
 import type { Metadata } from "next";
 
 interface Props {
-  params:       { slug: string };
-  searchParams: Record<string, string>;
+  params:       Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string>>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
   const link = await prisma.dynamicLink.findUnique({
-    where: { slug: params.slug, deletedAt: null },
+    where: { slug, deletedAt: null },
     select: { ogTitle: true, ogDescription: true, ogImage: true, faviconUrl: true, title: true },
   });
   if (!link) return { title: "Not Found" };
@@ -32,7 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function SlugPage({ params, searchParams }: Props) {
-  const { slug } = params;
+  const { slug } = await params;
+  const sp = await searchParams;
 
   const link = await prisma.dynamicLink.findUnique({
     where: { slug, deletedAt: null },
@@ -75,7 +77,7 @@ export default async function SlugPage({ params, searchParams }: Props) {
 
   // Password gate
   if (link.password) {
-    const submitted = searchParams.p;
+    const submitted = sp.p;
     if (!submitted) {
       return <PasswordGate slug={slug} ogTitle={link.ogTitle ?? link.title ?? undefined} />;
     }
@@ -89,11 +91,11 @@ export default async function SlugPage({ params, searchParams }: Props) {
   recordVisit({
     linkId: link.id,
     ip, userAgent, referrer, country, region, city, language, timezone,
-    utmSource:   searchParams.utm_source   ?? link.utmSource   ?? undefined,
-    utmMedium:   searchParams.utm_medium   ?? link.utmMedium   ?? undefined,
-    utmCampaign: searchParams.utm_campaign ?? link.utmCampaign ?? undefined,
-    utmTerm:     searchParams.utm_term,
-    utmContent:  searchParams.utm_content,
+    utmSource:   sp.utm_source   ?? link.utmSource   ?? undefined,
+    utmMedium:   sp.utm_medium   ?? link.utmMedium   ?? undefined,
+    utmCampaign: sp.utm_campaign ?? link.utmCampaign ?? undefined,
+    utmTerm:     sp.utm_term,
+    utmContent:  sp.utm_content,
   });
 
   // Redirect delay
