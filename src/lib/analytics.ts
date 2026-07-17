@@ -53,7 +53,17 @@ export async function recordVisit(data: VisitData): Promise<void> {
             ? "DESKTOP"
             : "UNKNOWN";
 
-    // Upsert visitor
+    // Extract referrer domain up-front (CPU only, no I/O)
+    let refererDomain: string | undefined;
+    if (data.referrer) {
+      try {
+        refererDomain = new URL(data.referrer).hostname;
+      } catch {
+        refererDomain = undefined;
+      }
+    }
+
+    // Upsert visitor first — we need the result to know isUnique and get visitorId
     const visitor = await prisma.visitor.upsert({
       where: { linkId_fingerprint: { linkId: data.linkId, fingerprint } },
       update: { lastSeen: new Date(), totalVisits: { increment: 1 } },
@@ -68,55 +78,46 @@ export async function recordVisit(data: VisitData): Promise<void> {
     });
 
     const isUnique = visitor.totalVisits === 1;
+    const now = new Date();
 
-    // Extract referrer domain
-    let refererDomain: string | undefined;
-    if (data.referrer) {
-      try {
-        refererDomain = new URL(data.referrer).hostname;
-      } catch {
-        refererDomain = undefined;
-      }
-    }
-
-    // Create analytics record
-    await prisma.analytics.create({
-      data: {
-        linkId: data.linkId,
-        visitorId: visitor.id,
-        ip: data.ip,
-        userAgent: data.userAgent,
-        browser,
-        os,
-        device: deviceType,
-        country: data.country,
-        region: data.region,
-        city: data.city,
-        referrer: data.referrer,
-        refererDomain,
-        language: data.language,
-        timezone: data.timezone,
-        utmSource: data.utmSource,
-        utmMedium: data.utmMedium,
-        utmCampaign: data.utmCampaign,
-        utmTerm: data.utmTerm,
-        utmContent: data.utmContent,
-        screenWidth: data.screenWidth,
-        screenHeight: data.screenHeight,
-        isUnique,
-        isBot: botDetected,
-        clickedAt: new Date(),
-      },
-    });
-
-    // Increment link counters
-    await prisma.dynamicLink.update({
-      where: { id: data.linkId },
-      data: {
-        totalClicks: { increment: 1 },
-        ...(isUnique ? { uniqueClicks: { increment: 1 } } : {}),
-      },
-    });
+    // Run analytics insert and link counter update in parallel — saves one full DB round-trip
+    await Promise.all([
+      prisma.analytics.create({
+        data: {
+          linkId: data.linkId,
+          visitorId: visitor.id,
+          ip: data.ip,
+          userAgent: data.userAgent,
+          browser,
+          os,
+          device: deviceType,
+          country: data.country,
+          region: data.region,
+          city: data.city,
+          referrer: data.referrer,
+          refererDomain,
+          language: data.language,
+          timezone: data.timezone,
+          utmSource: data.utmSource,
+          utmMedium: data.utmMedium,
+          utmCampaign: data.utmCampaign,
+          utmTerm: data.utmTerm,
+          utmContent: data.utmContent,
+          screenWidth: data.screenWidth,
+          screenHeight: data.screenHeight,
+          isUnique,
+          isBot: botDetected,
+          clickedAt: now,
+        },
+      }),
+      prisma.dynamicLink.update({
+        where: { id: data.linkId },
+        data: {
+          totalClicks: { increment: 1 },
+          ...(isUnique ? { uniqueClicks: { increment: 1 } } : {}),
+        },
+      }),
+    ]);
   } catch (err) {
     console.error("Failed to record visit:", err);
   }

@@ -1,5 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { recordVisit } from "@/lib/analytics";
 import { verifyPassword } from "@/lib/hash";
@@ -13,12 +14,23 @@ interface Props {
   searchParams: Promise<Record<string, string>>;
 }
 
+/**
+ * Cache the link lookup for 60 seconds.
+ * This avoids a DB hit on every visit for the same slug.
+ * The cache is invalidated automatically after 60s, so edits
+ * propagate quickly without requiring explicit revalidation.
+ */
+const getCachedLink = unstable_cache(
+  async (slug: string) =>
+    prisma.dynamicLink.findUnique({ where: { slug, deletedAt: null } }),
+  ["dynamic-link-slug"],
+  { revalidate: 60, tags: ["dynamic-link"] }
+);
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const link = await prisma.dynamicLink.findUnique({
-    where: { slug, deletedAt: null },
-    select: { ogTitle: true, ogDescription: true, ogImage: true, faviconUrl: true, title: true },
-  });
+  // Reuse the same cached fetch — no extra DB round-trip
+  const link = await getCachedLink(slug);
   if (!link) return { title: "Not Found" };
   return {
     title: link.ogTitle ?? link.title ?? "Redirecting…",
@@ -36,9 +48,11 @@ export default async function SlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = await searchParams;
 
-  const link = await prisma.dynamicLink.findUnique({
-    where: { slug, deletedAt: null },
-  });
+  // Fetch link + headers in parallel — shaves off one sequential round-trip
+  const [link, headersList] = await Promise.all([
+    getCachedLink(slug),
+    headers(),
+  ]);
 
   if (!link) notFound();
 
@@ -64,7 +78,6 @@ export default async function SlugPage({ params, searchParams }: Props) {
   const destination = destUrl.toString();
 
   // Collect visitor metadata
-  const headersList = await headers();
   const userAgent = headersList.get("user-agent")          ?? undefined;
   const referrer  = headersList.get("referer")             ?? undefined;
   const language  = headersList.get("accept-language")?.split(",")[0] ?? undefined;
@@ -87,8 +100,9 @@ export default async function SlugPage({ params, searchParams }: Props) {
     }
   }
 
-  // Record visit — await so it completes before redirect throws
-  await recordVisit({
+  // Fire analytics in the background — do NOT await before redirecting.
+  // The visit is recorded asynchronously so the user gets redirected immediately.
+  recordVisit({
     linkId: link.id,
     ip, userAgent, referrer, country, region, city, language, timezone,
     utmSource:   sp.utm_source   ?? link.utmSource   ?? undefined,
@@ -96,9 +110,9 @@ export default async function SlugPage({ params, searchParams }: Props) {
     utmCampaign: sp.utm_campaign ?? link.utmCampaign ?? undefined,
     utmTerm:     sp.utm_term,
     utmContent:  sp.utm_content,
-  });
+  }).catch((err) => console.error("Background recordVisit failed:", err));
 
-  // Redirect delay
+  // Redirect delay (user-configured countdown)
   if (link.redirectDelay > 0) {
     return <RedirectDelay destination={destination} delay={link.redirectDelay} />;
   }
