@@ -1,9 +1,19 @@
+/**
+ * This page only handles special-case redirects that need UI:
+ *   - Password-protected links  → renders <PasswordGate>
+ *   - Redirect delay links      → renders <RedirectDelay>
+ *   - Expired links             → renders <LinkExpired>
+ *   - Inactive / archived       → notFound()
+ *
+ * Normal (fast) redirects are handled by route.ts which issues an
+ * immediate HTTP 302 before any React rendering occurs.
+ */
 import { redirect, notFound } from "next/navigation";
-import { headers } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { recordVisit } from "@/lib/analytics";
 import { verifyPassword } from "@/lib/hash";
+import { headers } from "next/headers";
 import { PasswordGate } from "@/components/redirect/password-gate";
 import { RedirectDelay } from "@/components/redirect/redirect-delay";
 import { LinkExpired } from "@/components/redirect/link-expired";
@@ -14,26 +24,19 @@ interface Props {
   searchParams: Promise<Record<string, string>>;
 }
 
-/**
- * Cache the link lookup for 60 seconds.
- * This avoids a DB hit on every visit for the same slug.
- * The cache is invalidated automatically after 60s, so edits
- * propagate quickly without requiring explicit revalidation.
- */
 const getCachedLink = unstable_cache(
-  async (slug: string) =>
+  (slug: string) =>
     prisma.dynamicLink.findUnique({ where: { slug, deletedAt: null } }),
-  ["dynamic-link-slug"],
+  ["redirect-link-slug"],
   { revalidate: 60, tags: ["dynamic-link"] }
 );
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  // Reuse the same cached fetch — no extra DB round-trip
   const link = await getCachedLink(slug);
   if (!link) return { title: "Not Found" };
   return {
-    title: link.ogTitle ?? link.title ?? "Redirecting…",
+    title:       link.ogTitle ?? link.title ?? "Redirecting…",
     description: link.ogDescription ?? undefined,
     openGraph: {
       title:       link.ogTitle ?? link.title ?? undefined,
@@ -46,9 +49,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const sp = await searchParams;
+  const sp       = await searchParams;
 
-  // Fetch link + headers in parallel — shaves off one sequential round-trip
   const [link, headersList] = await Promise.all([
     getCachedLink(slug),
     headers(),
@@ -56,15 +58,12 @@ export default async function SlugPage({ params, searchParams }: Props) {
 
   if (!link) notFound();
 
-  // Status check
   if (link.status === "INACTIVE" || link.status === "ARCHIVED") notFound();
 
-  // Expiry
   if (link.expiresAt && link.expiresAt < new Date()) {
     return <LinkExpired reason="expired" />;
   }
 
-  // Click limit
   if (link.maxClicks !== null && link.totalClicks >= link.maxClicks) {
     return <LinkExpired reason="click-limit" />;
   }
@@ -77,18 +76,17 @@ export default async function SlugPage({ params, searchParams }: Props) {
 
   const destination = destUrl.toString();
 
-  // Collect visitor metadata
-  const userAgent = headersList.get("user-agent")          ?? undefined;
-  const referrer  = headersList.get("referer")             ?? undefined;
-  const language  = headersList.get("accept-language")?.split(",")[0] ?? undefined;
   const ip        = headersList.get("x-forwarded-for")?.split(",")[0].trim()
                  ?? headersList.get("x-real-ip")            ?? undefined;
+  const userAgent = headersList.get("user-agent")           ?? undefined;
+  const referrer  = headersList.get("referer")              ?? undefined;
+  const language  = headersList.get("accept-language")?.split(",")[0] ?? undefined;
   const country   = headersList.get("x-vercel-ip-country") ?? undefined;
   const region    = headersList.get("x-vercel-ip-country-region") ?? undefined;
   const city      = headersList.get("x-vercel-ip-city")    ?? undefined;
   const timezone  = headersList.get("x-vercel-ip-timezone") ?? undefined;
 
-  // Password gate
+  // ── Password gate ─────────────────────────────────────────────────────────
   if (link.password) {
     const submitted = sp.p;
     if (!submitted) {
@@ -96,26 +94,50 @@ export default async function SlugPage({ params, searchParams }: Props) {
     }
     const valid = await verifyPassword(submitted, link.password);
     if (!valid) {
-      return <PasswordGate slug={slug} error="Incorrect password" ogTitle={link.ogTitle ?? link.title ?? undefined} />;
+      return (
+        <PasswordGate
+          slug={slug}
+          error="Incorrect password"
+          ogTitle={link.ogTitle ?? link.title ?? undefined}
+        />
+      );
     }
+    // Password correct — record visit then redirect
+    recordVisit({
+      linkId: link.id,
+      ip, userAgent, referrer, country, region, city, language, timezone,
+      utmSource:   sp.utm_source   ?? link.utmSource   ?? undefined,
+      utmMedium:   sp.utm_medium   ?? link.utmMedium   ?? undefined,
+      utmCampaign: sp.utm_campaign ?? link.utmCampaign ?? undefined,
+      utmTerm:     sp.utm_term,
+      utmContent:  sp.utm_content,
+    }).catch((err) => console.error("Background recordVisit failed:", err));
+
+    redirect(destination);
   }
 
-  // Fire analytics in the background — do NOT await before redirecting.
-  // The visit is recorded asynchronously so the user gets redirected immediately.
+  // ── Redirect delay ────────────────────────────────────────────────────────
+  if (link.redirectDelay > 0) {
+    // Record the visit when the delay page loads (user will see the countdown)
+    recordVisit({
+      linkId: link.id,
+      ip, userAgent, referrer, country, region, city, language, timezone,
+      utmSource:   sp.utm_source   ?? link.utmSource   ?? undefined,
+      utmMedium:   sp.utm_medium   ?? link.utmMedium   ?? undefined,
+      utmCampaign: sp.utm_campaign ?? link.utmCampaign ?? undefined,
+      utmTerm:     sp.utm_term,
+      utmContent:  sp.utm_content,
+    }).catch((err) => console.error("Background recordVisit failed:", err));
+
+    return <RedirectDelay destination={destination} delay={link.redirectDelay} />;
+  }
+
+  // Fallback: shouldn't reach here for normal links (route.ts handles those),
+  // but kept as a safety net.
   recordVisit({
     linkId: link.id,
     ip, userAgent, referrer, country, region, city, language, timezone,
-    utmSource:   sp.utm_source   ?? link.utmSource   ?? undefined,
-    utmMedium:   sp.utm_medium   ?? link.utmMedium   ?? undefined,
-    utmCampaign: sp.utm_campaign ?? link.utmCampaign ?? undefined,
-    utmTerm:     sp.utm_term,
-    utmContent:  sp.utm_content,
   }).catch((err) => console.error("Background recordVisit failed:", err));
-
-  // Redirect delay (user-configured countdown)
-  if (link.redirectDelay > 0) {
-    return <RedirectDelay destination={destination} delay={link.redirectDelay} />;
-  }
 
   redirect(destination);
 }
